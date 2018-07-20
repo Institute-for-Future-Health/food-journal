@@ -36,7 +36,7 @@ public class FoodExtractor {
     private TextRazor client;
 
     public FoodExtractor() {
-        client = new TextRazor(BuildConfig.ApiKey);
+        client = new TextRazor(Constants.TextRazorAPIKey);
         client.addExtractor("words");
         client.addExtractor("entities");
     }
@@ -112,6 +112,7 @@ public class FoodExtractor {
     }
 
     protected ArrayList<Entity> findFoods(Response response) {
+        if(response == null) return null;
         List<Entity> keywords = response.getEntities();
 
         if (keywords!=null){
@@ -138,6 +139,7 @@ public class FoodExtractor {
     }
 
     protected static List<Word> findQuantities(Response response) {
+        if(response == null) return null;
         List<Word> words = response.getWords();
         List<Word> quantities = new ArrayList<Word>();
 
@@ -151,6 +153,7 @@ public class FoodExtractor {
     }
 
     protected MealType findMealType(Response response) {
+        if(response == null) return null;
         List<Entity> keywords = response.getEntities();
 
         // Find meal keyword

@@ -54,6 +54,9 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
 
     long lastResultTime = 0;
 
+    private boolean startListening = false;
+    private boolean stopListening = false;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
@@ -68,7 +71,7 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
         } catch (Exception e) {
             e.printStackTrace();
         }
-        startRecordTime = System.currentTimeMillis();
+
         Speech.init(this);
         delegate = this;
         Speech.getInstance().setListener(this);
@@ -109,6 +112,7 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
 
     @Override
     public void onSpecifiedCommandPronounced(String event) {
+        Log.v("Specified", event);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 ((AudioManager) Objects.requireNonNull(
@@ -145,7 +149,7 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
     @Override
     public void onStartOfSpeech() {
         Log.v("Event","Speech Started");
-        if(!startedTalk){
+        if(!startedTalk&&startListening){
             startedTalk = true;
             startTalkTime = System.currentTimeMillis();
         }
@@ -153,6 +157,8 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
 
     @Override
     public void onSpeechRmsChanged(float value) {
+        if(!startListening) return;
+        if(startRecordTime == 0) startRecordTime = System.currentTimeMillis();
         if(value > 7&&!oralAlert){
             Toast.makeText(getApplicationContext(), "Voice Detected", Toast.LENGTH_SHORT).show();
             oralAlert = true;
@@ -186,6 +192,13 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
 
     @Override
     public void onSpeechResult(String result) {
+        if(!startListening && !result.equals(Constants.startCommand)) return;
+        if(!startListening){
+            startListening = true;
+            speakText(Constants.startIndicate, 2);
+        }
+        if(result.equals("stop")) Speech.getInstance().stopListening();
+
         int spentTime = millToSeconds(lastResultTime, System.currentTimeMillis());
         if(spentTime < 5)
             return;

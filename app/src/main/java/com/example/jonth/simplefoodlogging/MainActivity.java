@@ -59,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView.LayoutManager mLayoutManager;
 
 
+
+
     private FoodExtractor foodExtractor;
     private FloatingActionButton record;
     private TextRazor client;
@@ -84,11 +86,11 @@ public class MainActivity extends AppCompatActivity {
         client.addExtractor("entities");
 
         foodExtractor = new FoodExtractor();
-        String hq1 = "I ate 2 bowls of chicken tikka masala and 3 coca colas for dinner.";
-        String hq2 = "five apples";
-        List<FoodEntry> foodEntries = foodExtractor.handleQuery(hq1);
+//        String hq1 = "I ate 2 bowls of chicken tikka masala and 3 coca colas for dinner.";
+//        String hq2 = "five apples";
+//        List<FoodEntry> foodEntries = foodExtractor.handleQuery(hq1);
 
-        displayMeals(foodEntries);
+//        displayMeals(foodEntries);
 //        handleQuery("I ate 2 bowls of chicken tikka masala and 3 coca colas for dinner.");
 
 //        handleQuery("I had some veggie for lunch today.");
