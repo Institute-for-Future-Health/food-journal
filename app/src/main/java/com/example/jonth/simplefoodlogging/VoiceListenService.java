@@ -1,11 +1,13 @@
 package com.example.jonth.simplefoodlogging;
 
 import android.Manifest;
+import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,10 +19,13 @@ import android.os.Vibrator;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
+import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.loopj.android.http.AsyncHttpClient;
+import com.loopj.android.http.JsonHttpResponseHandler;
 import com.sac.speech.GoogleVoiceTypingDisabledException;
 import com.sac.speech.Speech;
 import com.sac.speech.SpeechDelegate;
@@ -28,11 +33,20 @@ import com.sac.speech.SpeechRecognitionNotAvailable;
 import com.tbruyelle.rxpermissions.RxPermissions;
 
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
+
+import cz.msebera.android.httpclient.Header;
 
 public class VoiceListenService extends Service implements SpeechDelegate, Speech.stopDueToDelay  {
 
@@ -57,11 +71,25 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
     private boolean startListening = false;
     private boolean stopListening = false;
 
+    private JSONArray foodInfo = new JSONArray();
+
+    private FetchData fd = new FetchData();
+    SharedPreferences sharedpreferences;
+
+    public static String STEP_UPDATE = "1";
+
+    public LocalBroadcastManager manager;
+    Intent i;
+
+    private String partialResult = "";
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
         foodList = new ArrayList<FoodEntry>();
         foodExtractor = new FoodExtractor();
+        sharedpreferences = getApplicationContext().getSharedPreferences(Constants.preferenceToken, Context.MODE_PRIVATE);
+
         //TODO do something useful
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -71,6 +99,9 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        i = new Intent(STEP_UPDATE);
+        manager = LocalBroadcastManager.getInstance(getApplicationContext());
 
         Speech.init(this);
         delegate = this;
@@ -158,13 +189,20 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
     @Override
     public void onSpeechRmsChanged(float value) {
         if(!startListening) return;
-        if(startRecordTime == 0) startRecordTime = System.currentTimeMillis();
+//        if(startRecordTime == 0) startRecordTime = System.currentTimeMillis();
+        int spentTime = millToSeconds(startTalkTime, System.currentTimeMillis());
+        if(spentTime >= Constants.CycleThreshold && partialResult == ""){
+            Log.v("StopSign", spentTime + "");
+            Speech.getInstance().stopListening();
+            startListening = false;
+            startTalkTime = 0;
+        }
         if(value > 7&&!oralAlert){
             Toast.makeText(getApplicationContext(), "Voice Detected", Toast.LENGTH_SHORT).show();
             oralAlert = true;
         }
         if(!oralAlert){
-            if(millToSeconds(startRecordTime,System.currentTimeMillis()) >= 5){
+            if(millToSeconds(startTalkTime,System.currentTimeMillis()) >= 5){
                 oralAlert = true;
                 speakText(Constants.vocalAlert, 2);
             }
@@ -185,7 +223,8 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
     public void onSpeechPartialResults(List<String> results) {
 
         for (String partial : results) {
-            Log.v("Result", partial+"");
+            partialResult += partial;
+//            Log.v("Result", partial+"");
         }
 
     }
@@ -196,9 +235,12 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
         if(!startListening){
             startListening = true;
             speakText(Constants.startIndicate, 2);
+            startTalkTime = System.currentTimeMillis();
         }
-        if(result.equals("stop")) Speech.getInstance().stopListening();
-
+        if(result.equals("stop")){
+            Speech.getInstance().stopListening();
+            startTalkTime = 0;
+        }
         int spentTime = millToSeconds(lastResultTime, System.currentTimeMillis());
         if(spentTime < 5)
             return;
@@ -217,10 +259,10 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
             if(foodList.size()>0){
                 for(FoodEntry fn: foodList){
                     names += fn.getQuantity() + " " + fn.getName() + ",";
+                    fd.getInfo(fn.getName(), fn.getQuantity());
                 }
                 Log.v("Names", names);
             }
-//            Log.d("Names", names);
             if(names.length()>0){
                 gotFoodname = 1;
                 foodnames = names;
@@ -230,6 +272,7 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
                 Log.v("Names", "Nothing");
                 gotFoodname = 2;
             }
+            partialResult = "";
 
         }
     }
@@ -299,5 +342,82 @@ public class VoiceListenService extends Service implements SpeechDelegate, Speec
     private int millToSeconds(long start, long end){
         return (int)((end - start) / 1000);
     }
+
+
+    public class FetchData {
+        public String baseUrl = "https://api.edamam.com/api/food-database/parser?";
+        public String parameter = "&app_id="+ Constants.edamaId +"&app_key=" + Constants.edamamKey;
+        public int maxcal = 0;
+        public int mincal = Integer.MAX_VALUE;
+
+        public FetchData() {
+        }
+
+        public int getMaxcal() {
+            return maxcal;
+        }
+
+        public int getMincal() {
+            return mincal;
+        }
+
+        public void setMaxcal(int maxcal) {
+            this.maxcal = maxcal;
+        }
+
+        public void setMincal(int mincal) {
+            this.mincal = mincal;
+        }
+
+        public void getInfo(String name, int quantity) {
+            String paraFood = "ingr=" + name;
+            String requestUrl = baseUrl + paraFood + parameter;
+
+            AsyncHttpClient client = new AsyncHttpClient();
+
+            client.get(requestUrl, null, new JsonHttpResponseHandler() {
+                @Override
+                public void onSuccess(int statusCode, Header[] headers, JSONObject response) {
+                    Log.v("Request", response + "");
+                    try {
+                        JSONArray hintsJson = response.getJSONArray("hints");
+                        for (int i = 0; i < hintsJson.length(); i++) {
+                            int cal = (int) Math.round((double) hintsJson.getJSONObject(i).getJSONObject("food").getJSONObject("nutrients").get("ENERC_KCAL"));
+                            setMaxcal(Math.max(cal, getMaxcal()));
+                            setMincal(Math.min(cal, getMincal()));
+                        }
+                        SharedPreferences.Editor editor = sharedpreferences.edit();
+                        String energy = "";
+                        if (mincal == maxcal) energy = mincal+"";
+                        else energy = mincal + " to " + maxcal;
+
+                        JSONObject obj = new JSONObject();
+                        obj.put(Constants.nameTitle, name);
+                        obj.put(Constants.energyTitle, energy);
+
+                        i.putExtra(Constants.nameTitle, name);
+                        i.putExtra(Constants.energyTitle, energy);
+                        manager.sendBroadcast(i);
+
+                        foodInfo.put(obj);
+                        editor.putString("foodinfo", foodInfo.toString());
+                        Log.v("Saved", foodInfo.toString());
+                        editor.commit();
+                        return;
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onFailure(int statusCode, Header[] headers, String res, Throwable t) {
+                    // called when response HTTP status is "4XX" (eg. 401, 403, 404)
+                    Log.v("Request", "Request failure");
+                }
+            });
+        }
+
+    }
+
 
 }

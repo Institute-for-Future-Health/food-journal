@@ -45,11 +45,11 @@ dependencies {
     implementation 'com.google.apis:google-api-services-language:v1beta2-rev6-1.22.0'
     implementation 'com.google.code.findbugs:jsr305:2.0.1'
 
-    implementation 'com.github.vikramezhil:DroidSpeech:v2.0.3'
-
     implementation 'commons-io:commons-io:2.5'
 
     implementation 'com.github.sachinvarma:Speech-Recognizer:0.0.1'
     implementation 'com.tbruyelle.rxpermissions:rxpermissions:0.7.0@aar'
     implementation 'io.reactivex:rxandroid:1.2.1'
+
+    implementation 'com.loopj.android:android-async-http:1.4.9'
 }

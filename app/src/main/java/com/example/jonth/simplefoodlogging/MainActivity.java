@@ -1,38 +1,31 @@
 package com.example.jonth.simplefoodlogging;
 
 import android.Manifest;
-import android.app.Dialog;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.StrictMode;
 import android.support.design.widget.FloatingActionButton;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.Button;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
-import com.google.api.client.extensions.android.http.AndroidHttp;
-import com.google.api.client.extensions.android.json.AndroidJsonFactory;
-import com.google.api.services.speech.v1beta1.Speech;
-import com.google.api.services.speech.v1beta1.SpeechRequestInitializer;
-import com.google.api.services.speech.v1beta1.model.RecognitionAudio;
-import com.google.api.services.speech.v1beta1.model.RecognitionConfig;
-import com.google.api.services.speech.v1beta1.model.SpeechRecognitionResult;
-import com.google.api.services.speech.v1beta1.model.SyncRecognizeRequest;
-import com.google.api.services.speech.v1beta1.model.SyncRecognizeResponse;
+import com.example.jonth.simplefoodlogging.com.futurehealth.adapter.FoodAdapter;
+
 import com.textrazor.AnalysisException;
 import com.textrazor.NetworkException;
 import com.textrazor.TextRazor;
@@ -42,8 +35,10 @@ import com.textrazor.annotations.Response;
 import com.textrazor.annotations.Word;
 
 import org.joda.time.DateTime;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -55,10 +50,11 @@ public class MainActivity extends AppCompatActivity {
     public static String id1 = "test_channel_01";
     private static final int MY_PERMISSIONS_RECORD_AUDIO = 1;
     private RecyclerView mRecyclerView;
-    private RecyclerView.Adapter mAdapter;
+    public FoodAdapter mAdapter;
     private RecyclerView.LayoutManager mLayoutManager;
+    private ListView planList;
 
-
+    public List<FoodBean> foodlist = new ArrayList<FoodBean>();
 
 
     private FoodExtractor foodExtractor;
@@ -69,13 +65,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    SharedPreferences sharedpreferences;
 
+
+    private BroadcastReceiver broadcastReceiver;
+    private LocalBroadcastManager serviceManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        sharedpreferences = getApplicationContext().getSharedPreferences(Constants.preferenceToken, Context.MODE_PRIVATE);
 
+        setContentView(R.layout.activity_main);
+        planList = findViewById(R.id.planlist);
         record = findViewById(R.id.fab);
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
@@ -86,17 +88,18 @@ public class MainActivity extends AppCompatActivity {
         client.addExtractor("entities");
 
         foodExtractor = new FoodExtractor();
-//        String hq1 = "I ate 2 bowls of chicken tikka masala and 3 coca colas for dinner.";
-//        String hq2 = "five apples";
-//        List<FoodEntry> foodEntries = foodExtractor.handleQuery(hq1);
 
-//        displayMeals(foodEntries);
-//        handleQuery("I ate 2 bowls of chicken tikka masala and 3 coca colas for dinner.");
+        FetchData fd = new FetchData();
+        fd.getInfo("pizza");
 
-//        handleQuery("I had some veggie for lunch today.");
+        Log.v("Request", fd.getMaxcal() + ":" + fd.getMincal());
 
-//        handleQuery("I had some beef for breakfast");
-//        handleQuery("I ate 2 pizzas and an egg for breakfast.");
+        try {
+            updateList();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
         createchannel();
         requestRecordAudioPermission();
         record.setOnClickListener(new View.OnClickListener() {
@@ -109,12 +112,34 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(VoiceListenService.STEP_UPDATE);
+
+
+
+        broadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent){
+                Log.v("Broadcast", "Msg Received");
+                Toast.makeText(getApplicationContext(), "Received", Toast.LENGTH_SHORT).show();
+                Bundle recData = intent.getExtras();
+
+//                Toast.makeText(getApplicationContext(), recData.getString(Constants.nameTitle) + ":" +recData.getString(Constants.energyTitle), Toast.LENGTH_SHORT).show();
+
+                foodlist.add(new FoodBean(recData.getString(Constants.nameTitle), recData.getString(Constants.energyTitle), "", "", ""));
+                mAdapter.notifyDataSetChanged();
+            }
+        };
+
+        serviceManager = LocalBroadcastManager.getInstance(this);
+        serviceManager.registerReceiver(broadcastReceiver, intentFilter);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
+        serviceManager.unregisterReceiver(broadcastReceiver);
     }
 
     protected void handleQuery(String query) {
@@ -134,33 +159,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void displayMeals(List<FoodEntry> foodEntries) {
-        LinearLayout breakfastLayout = (LinearLayout) findViewById(R.id.breakfast_linear_layout_view);
-        LinearLayout lunchLayout = (LinearLayout) findViewById(R.id.lunch_linear_layout_view);
-        LinearLayout dinnerLayout = (LinearLayout) findViewById(R.id.dinner_linear_layout_view);
-
-        LayoutInflater inflater = LayoutInflater.from(this);
-        for (FoodEntry item : foodEntries) {
-            View view;
-            LinearLayout linearLayout;
-            if (item.getMealType() == FoodExtractor.MealType.BREAKFAST) {
-                view  = inflater.inflate(R.layout.food_entry_view, breakfastLayout, false);
-                linearLayout = breakfastLayout;
-            } else if (item.getMealType() == FoodExtractor.MealType.LUNCH) {
-                view  = inflater.inflate(R.layout.food_entry_view, lunchLayout, false);
-                linearLayout = lunchLayout;
-            } else {
-                view  = inflater.inflate(R.layout.food_entry_view, dinnerLayout, false);
-                linearLayout = dinnerLayout;
-            }
-
-            TextView foodname = (TextView) view.findViewById(R.id.food_name_entry);
-            TextView foodQuantity = (TextView) view.findViewById(R.id.food_quantity);
-
-            foodname.setText(item.getName());
-            foodQuantity.setText(Integer.toString(item.getQuantity()) + " servings");
-            // set item content in view
-            linearLayout.addView(view);
-        }
+////        LinearLayout breakfastLayout = (LinearLayout) findViewById(R.id.breakfast_linear_layout_view);
+////        LinearLayout lunchLayout = (LinearLayout) findViewById(R.id.lunch_linear_layout_view);
+////        LinearLayout dinnerLayout = (LinearLayout) findViewById(R.id.dinner_linear_layout_view);
+//
+//        LayoutInflater inflater = LayoutInflater.from(this);
+//        for (FoodEntry item : foodEntries) {
+//            View view;
+//            LinearLayout linearLayout;
+//            if (item.getMealType() == FoodExtractor.MealType.BREAKFAST) {
+//                view  = inflater.inflate(R.layout.food_entry_view, breakfastLayout, false);
+//                linearLayout = breakfastLayout;
+//            } else if (item.getMealType() == FoodExtractor.MealType.LUNCH) {
+//                view  = inflater.inflate(R.layout.food_entry_view, lunchLayout, false);
+//                linearLayout = lunchLayout;
+//            } else {
+//                view  = inflater.inflate(R.layout.food_entry_view, dinnerLayout, false);
+//                linearLayout = dinnerLayout;
+//            }
+//
+//            TextView foodname = (TextView) view.findViewById(R.id.food_name_entry);
+//            TextView foodQuantity = (TextView) view.findViewById(R.id.food_quantity);
+//
+//            foodname.setText(item.getName());
+//            foodQuantity.setText(Integer.toString(item.getQuantity()) + " servings");
+//            // set item content in view
+//            linearLayout.addView(view);
+//        }
     }
 
     protected Response analyzeQuery(String query) {
@@ -365,6 +390,24 @@ public class MainActivity extends AppCompatActivity {
             // Sets the notification light color for notifications posted to this channel, if the device supports this feature.
             mChannel.setShowBadge(true);
             nm.createNotificationChannel(mChannel);
+        }
+    }
+
+
+    public void updateList() throws JSONException {
+        SharedPreferences.Editor editor = sharedpreferences.edit();
+//        String updatedInfo = sharedpreferences.getString(Constants.nameTitle, "");
+        String updatedInfo = "[{'Name':'Apple','Energy':'46 to 250'}]";
+        Log.v("Update", updatedInfo);
+        if(updatedInfo != ""){
+            JSONArray jsonArray = new JSONArray(updatedInfo);
+            if(jsonArray.length() == foodlist.size()) return;
+            for(int i = 0; i < jsonArray.length(); i++){
+                JSONObject obj = (JSONObject)jsonArray.get(i);
+                foodlist.add(new FoodBean(obj.getString("Name"), obj.getString("Energy"), "", "", ""));
+            }
+            mAdapter = new FoodAdapter(this, foodlist);
+            planList.setAdapter(mAdapter);
         }
     }
 }

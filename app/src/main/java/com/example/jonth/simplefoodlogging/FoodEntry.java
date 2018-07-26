@@ -30,12 +30,56 @@ public class FoodEntry
     private FoodExtractor.MealType mealType;
     private String emotion;
 
-    public FoodEntry(String name, DateTime time, int quantity, FoodExtractor.MealType mealType, String emotion) {
+    private String energy;
+    private String protein;
+    private String fat;
+    private String carbon;
+
+
+    public FoodEntry(String name, DateTime time, int quantity, FoodExtractor.MealType mealType, String emotion, String energy, String protein, String fat, String carbon) {
         this.name = name;
         this.time = time;
         this.quantity = quantity;
         this.mealType = mealType;
         this.emotion = emotion;
+
+        this.energy = energy;
+        this.protein = protein;
+        this.fat = fat;
+        this.carbon = carbon;
+
+    }
+
+    public void setEnergy(String energy) {
+        this.energy = energy;
+    }
+
+    public void setProtein(String protein) {
+        this.protein = protein;
+    }
+
+    public void setFat(String fat) {
+        this.fat = fat;
+    }
+
+    public void setCarbon(String carbon) {
+        this.carbon = carbon;
+    }
+
+    public String getEnergy() {
+        return energy;
+    }
+
+    public String getProtein() {
+        return protein;
+    }
+
+    public String getFat() {
+        return fat;
+    }
+
+    public String getCarbon() {
+        return carbon;
     }
 
     public FoodEntry() {
