@@ -1,4 +1,4 @@
-package com.example.jonth.simplefoodlogging;
+package com.beans;
 
 public class FoodBean {
     String name;

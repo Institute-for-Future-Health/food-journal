@@ -3,25 +3,6 @@ import org.joda.time.DateTime;
 
 public class FoodEntry
 {
-    //    logType: foodIntake
-//    Time:
-//    contents:
-//    {
-//        time: start
-//        name:
-//        duration:
-//        nutrition:
-//        quantity:
-//        mealType:
-//        emotion:
-//        metadata: {
-//            img:
-//            audio:
-//            recipe:
-//            restaurant:
-//        }
-//    }
-
     private String name;
     private DateTime time;
     private float duration;

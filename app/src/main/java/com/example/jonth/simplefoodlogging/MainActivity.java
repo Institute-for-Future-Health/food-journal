@@ -17,14 +17,12 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.jonth.simplefoodlogging.com.futurehealth.adapter.FoodAdapter;
+import com.adapter.FoodAdapter;
+import com.beans.FoodBean;
 
 import com.textrazor.AnalysisException;
 import com.textrazor.NetworkException;
@@ -82,11 +80,6 @@ public class MainActivity extends AppCompatActivity {
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
 
-        // Initialize TextRazor
-        client = new TextRazor(BuildConfig.ApiKey);
-        client.addExtractor("words");
-        client.addExtractor("entities");
-
         foodExtractor = new FoodExtractor();
 
         FetchData fd = new FetchData();
@@ -101,7 +94,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         createchannel();
-        requestRecordAudioPermission();
+
+        requestRecordAudioPermission();         //Request for audio permission
         record.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -113,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        IntentFilter intentFilter = new IntentFilter();
+        IntentFilter intentFilter = new IntentFilter();         //Get message from voice service
         intentFilter.addAction(VoiceListenService.STEP_UPDATE);
 
 
@@ -125,9 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext(), "Received", Toast.LENGTH_SHORT).show();
                 Bundle recData = intent.getExtras();
 
-//                Toast.makeText(getApplicationContext(), recData.getString(Constants.nameTitle) + ":" +recData.getString(Constants.energyTitle), Toast.LENGTH_SHORT).show();
-
-                foodlist.add(new FoodBean(recData.getString(Constants.nameTitle), recData.getString(Constants.energyTitle), "", "", ""));
+                foodlist.add(new FoodBean(recData.getString(Constants.nameTitle), recData.getString(Constants.energyTitle), "", "", ""));   //Get the message from voice service and update the listview
                 mAdapter.notifyDataSetChanged();
             }
         };

@@ -1,4 +1,4 @@
-package com.example.jonth.simplefoodlogging.com.futurehealth.adapter;
+package com.adapter;
 
 import android.content.Context;
 import android.view.View;
@@ -7,8 +7,7 @@ import android.widget.BaseAdapter;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-import com.example.jonth.simplefoodlogging.FoodBean;
-import com.example.jonth.simplefoodlogging.FoodEntry;
+import com.beans.FoodBean;
 import com.example.jonth.simplefoodlogging.R;
 
 import java.util.List;
